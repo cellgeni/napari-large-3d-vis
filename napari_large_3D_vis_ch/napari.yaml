@@ -1,0 +1,10 @@
+name: napari-large-3D-vis-ch
+display_name: NL3Dvis
+contributions:
+  commands:
+    - id: napari-large-3D-vis-ch.make_qwidget
+      python_name: napari_large_3D_vis_ch._widget:NL3DvisWidget
+      title: Test NL3Dvis
+  widgets:
+    - command: napari-large-3D-vis-ch.make_qwidget
+      display_name: Test NL3Dvis widget
