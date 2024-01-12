@@ -100,7 +100,7 @@ class NL3DvisWidget(QWidget):
         self.method_info_box = Label(value = text_info)
         self.layout().addWidget(self.method_info_box.native)
         
-        self.load_button = PushButton(text='Load')
+        self.load_button = PushButton(text='Run')
         self.load_button.clicked.connect(self.load_file)
         self.layout().addWidget(self.load_button.native)
         
