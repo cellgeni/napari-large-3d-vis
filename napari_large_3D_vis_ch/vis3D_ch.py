@@ -250,10 +250,13 @@ def extract_subset(dask_data, x, y, z, vol_shape, volume_center, boxsize):
         z0=0; z1 = boxsize
     if z1>vol_shape[0]: 
         z1=vol_shape[0]; z0 = z1-boxsize
-        
-    chunk = dask_array[z0:z1, y0:y1, x0:x1]
-    np_chunk = chunk.compute()
-    return np_chunk
+    np_list_of_chunks = []
+    for nch in range(len(dask_array)):
+        chunk = dask_array[nch][z0:z1, y0:y1, x0:x1]
+        np_chunk = chunk.compute()
+        np_list_of_chunks.append(np_chunk)
+        del np_chunk
+    return np_list_of_chunks
 
 def DetBoxSizeMem(dask_array, max_mem_allowed):
     dtype = str(dask_array.dtype)
@@ -321,7 +324,7 @@ class MyCanvas(SceneCanvas):
         self.method_vis = method_vis; self.fps_prev = self.fps
         self._initialize_volume()
         self.timer = app.Timer(0.5, connect=self.on_time, start=True)
-        self.timer_close = app.Timer(5, connect=self.check_canvas_closed, start=True)
+        self.timer_close = app.Timer(15, connect=self.check_canvas_closed, start=True)
         if method_vis[:5] == 'Auto ':
             self.timer_slow = app.Timer(5, connect=self.update_whole_scene, start=True)
         
@@ -432,12 +435,12 @@ class MyCanvas(SceneCanvas):
             
         return volume_list            
     
-    def update_actual_scene_inside(self, volume_chunk, n_pyr_cur, volume_center, boxsize, x, y, z):
+    def update_actual_scene_inside(self, np_list_of_chunks, n_pyr_cur, volume_center, boxsize, x, y, z):
         #print('xyz-inside')
         #print(x)
         #print(y)
         #print(z)
-        self.volume.set_data(volume_chunk)    
+        self.volume_list = self.update_volume_multichannel(np_list_of_chunks, self.volume_list) 
         distance = volume_center - np.array([x,y,z])
         chunk_center = np.array([boxsize/2, boxsize/2, boxsize/2])
         print('cam center before update: ' + str(self.view.camera.center))
@@ -504,14 +507,15 @@ class MyCanvas(SceneCanvas):
 
         if inside:
             new_pyr_level = 0
-            boxsize = DetBoxSizeMem(self.dask_data[new_pyr_level], self.max_memory/2)
+            boxsize = DetBoxSizeMem(self.dask_data[0][new_pyr_level], self.max_memory/2)
+            boxsize /= len(self.dask_data)**(1/3)
             print('Computed box size: ' + str(boxsize))
             #boxsize = 500
             if new_pyr_level != n_pyr_cur:
                 coef = 2**(n_pyr_cur-new_pyr_level)
                 x*=coef;y*=coef;z*=coef; x_inv*=coef; y_inv*=coef; z_inv*=coef       
                 self.pyr_level = new_pyr_level
-                self.vol_shape = np.array(self.dask_data[new_pyr_level].shape)
+                self.vol_shape = np.array(self.dask_data[0][new_pyr_level].shape)
                 volume_center = (np.array(self.vol_shape)/ 2)[::-1]
                 '''
                 if not z_pyr:
@@ -519,8 +523,8 @@ class MyCanvas(SceneCanvas):
                     CS.vol_shape[0] /= 2**new_pyr_level
                 '''
                 #print('Boxsize is ' + str(boxsize))
-            vol_chunk = extract_subset(self.dask_data, x, y_inv, z, self.vol_shape, volume_center, boxsize)   
-            self.update_actual_scene_inside(vol_chunk, n_pyr_cur, volume_center, boxsize, x, y_inv, z)
+            np_list_of_chunks = extract_subset(self.dask_data, x, y_inv, z, self.vol_shape, volume_center, boxsize)   
+            self.update_actual_scene_inside(np_list_of_chunks, n_pyr_cur, volume_center, boxsize, x, y_inv, z)
             
     def change_max_int(self, mode):
         
@@ -576,19 +580,7 @@ class MyCanvas(SceneCanvas):
 
 def main2(path_img_in, path_img_in_tiff, max_memory_in, cmin, cmax, cmap_label_list, method_vis):
     #path_img_in, path_img_in_tiff, max_memory_in, z_pyr_in, cmin, cmax, cmap_label, method_tiff
-    '''
-    path_img_in = '/nfs/team283_imaging/Alpenglow_data/Test/Mouse_Thymus_Scout/Zarr/mouse_thymus.zarr/0'
-    path_img_in_tiff = ''
-    max_memory_in = 5
-    cmin = 0
-    cmax = 1000
-    cmap_label = 'grays'
-    method_tiff = 'Method B'
-    z_pyr_in = False
-    print('vis3D program started!!!!!!!!!!!!!!!!!')
-    
-    global z_pyr
-    '''
+
     
     #global timer_info_box, timer_check_canvas_closed
     #timer_info_box = Timer(1, connect=info_box, start=True)
@@ -600,7 +592,7 @@ def main2(path_img_in, path_img_in_tiff, max_memory_in, cmin, cmax, cmap_label_l
     dask_data, cmap_label_list_final, Nch = OpenImageZarr(path_img_in, path_img_in_tiff, cmap_label_list)
     my_canvas = MyCanvas(canvas_title, c_lim, cmap_label_list_final, max_memory_in, dask_data, method_vis, Nch)
     view = my_canvas.view; cam = view.camera
-    print('mycanva_run: ' + str(my_canvas.run_program))
+    #print('mycanva_run: ' + str(my_canvas.run_program))
     #while my_canvas.run_program == True:
     
     @my_canvas.events.key_press.connect
