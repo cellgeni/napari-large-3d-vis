@@ -1,11 +1,3 @@
-"""
-This module is an example of a barebones QWidget plugin for napari
-
-It implements the Widget specification.
-see: https://napari.org/stable/plugins/guides.html?#widgets
-
-Replace code below according to your needs.
-"""
 import os
 from typing import TYPE_CHECKING
 
