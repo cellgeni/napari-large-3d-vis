@@ -297,7 +297,10 @@ def timer_func(some_text, event):
 
 def get_canvas_name(path_img_in, path_img_in_tiff):
     if len(str(path_img_in))>2:
-        canvas_name = str(path_img_in).split("/")[-2]
+        try:
+            canvas_name = str(path_img_in).split("/")[-2]
+        except:
+            canvas_name = str(path_img_in).split("\\")[-2] 
     elif len(str(path_img_in_tiff))>2:
         canvas_name = os.path.basename(path_img_in_tiff)
     else: 
