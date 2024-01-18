@@ -4,7 +4,6 @@ from vispy.visuals.filters.clipping_planes import PlanesClipper
 from ome_zarr.io import parse_url, ZarrLocation
 from ome_zarr.reader import Reader
 import fire
-import yaml
 import path
 from dask import delayed
 from dask.dataframe import from_dask_array
