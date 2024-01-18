@@ -1,3 +1,11 @@
+"""
+This module is an example of a barebones QWidget plugin for napari
+
+It implements the Widget specification.
+see: https://napari.org/stable/plugins/guides.html?#widgets
+
+Replace code below according to your needs.
+"""
 import os
 from typing import TYPE_CHECKING
 
@@ -40,9 +48,9 @@ class NL3DvisWidget(QWidget):
         self.max_ram = SpinBox(value=5, min = 1, max = 30)
         self.layout().addWidget(self.max_ram.native)
         #z-pyramids
-        #self.z_pyr = CheckBox(text='z pyramids')
+        self.z_pyr = CheckBox(text='z pyramids')
         #checkbox
-        #self.layout().addWidget(self.z_pyr.native)
+        self.layout().addWidget(self.z_pyr.native)
         
         #colormap for 4 channels
         
@@ -106,4 +114,4 @@ class NL3DvisWidget(QWidget):
         #timer_check()
         #vis3D()
         cmap_list = [self.cmap1.value, self.cmap2.value, self.cmap3.value, self.cmap4.value]
-        vis3D(self.target_file.value, self.target_file_tiff.value, self.max_ram.value, self.min_int.value, self.max_int.value, cmap_list, self.method_vis.value)
+        vis3D(self.target_file.value, self.target_file_tiff.value, self.max_ram.value, self.min_int.value, self.max_int.value, cmap_list, self.method_vis.value, self.z_pyr)
