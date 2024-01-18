@@ -39,7 +39,7 @@ def check_all_elements_equal(lst):
     repeated = list(repeat(lst[0], len(lst)))
     return repeated == lst
         
-def OpenImageZarr(filepath_zarr, filepath_tiff, cmap_label_list, max_NCh = 4):
+def OpenImageZarr(filepath_zarr, filepath_tiff, cmap_label_list, max_NCh = 4, z_pyr=False):
     
     if len(str(filepath_zarr))>3:
         #at the moment I didnt change anything for ZARR regarding channels
@@ -126,8 +126,12 @@ def OpenImageZarr(filepath_zarr, filepath_tiff, cmap_label_list, max_NCh = 4):
                     for nch in range(N_ch):
                         if cmap_label_list[nch]!= 'None':
                             d = np.take(data, nch, axis = ax_ch)
+                            
                             print(d.shape)
-                            dask_data.append([d, d[::2,::2, ::2], d[::4,::4, ::4], d[::8,::8, ::8], d[::16,::16, ::16], d[::32,::32,::32]])
+                            if z_pyr == True:
+                                dask_data.append([d, d[::2,::2, ::2], d[::4,::4, ::4], d[::8,::8, ::8], d[::16,::16, ::16], d[::32,::32,::32]])
+                            else:
+                                dask_data.append([d, d[:,::2, ::2], d[:,::4, ::4], d[:,::8, ::8], d[:,::16, ::16], d[:,::32,::32]])
                             cmap_list_updated.append(cmap_label_list[nch])
                 else:
                     dask_data.append([data, data[::2,::2, ::2], data[::4,::4, ::4], data[::8,::8, ::8], data[::16,::16, ::16], data[::32,::32,::32]])
@@ -412,11 +416,12 @@ class MyCanvas(SceneCanvas):
                     self.x_list = []; self.y_list = []; self.z_list = []
                 
                 
-    def update_volume_multichannel(self, np_array_list, volume_list):
+    def update_volume_multichannel(self, np_array_list, volume_list, z_coef = 5, color_inverse = False):
     
         parent_scene = self.view.scene
         cmap_label_list = self.cmap_label_list; clim = self.clim
         if volume_list == []:
+            
             for nch in range(self.Nch):
                 cmap_label_list[nch]
                 if cmap_label_list[nch][0] == 'R': colors_cmap = np.array([[0,0,0],[1,0,0]])
@@ -426,15 +431,18 @@ class MyCanvas(SceneCanvas):
                 if cmap_label_list[nch][0] == 'C': colors_cmap = np.array([[0,0,0],[0,1,1]])
                 if cmap_label_list[nch][0] == 'M': colors_cmap = np.array([[0,0,0],[1,0,1]])
                 if cmap_label_list[nch][0] == 'W': colors_cmap = np.array([[0,0,0],[1,1,1]])
-                
+                if color_inverse: colors_cmap[[0, 1]] = colors_cmap[[1, 0]]
+                one_ch_volume = np_array_list[nch].copy(); one_ch_volume[0]*=z_coef
                 custom_cmap = color.colormap.Colormap(colors = colors_cmap)
-                v = scene.visuals.Volume(np_array_list[nch], cmap=custom_cmap, method='mip', raycasting_mode='volume', gamma="1.0", interpolation='linear', parent=parent_scene, clim = clim)
+                v = scene.visuals.Volume(one_ch_volume, cmap=custom_cmap, method='mip', raycasting_mode='volume', gamma="1.0", interpolation='linear', parent=parent_scene, clim = clim)
                 volume_list.append(v)
                 v.set_gl_state(preset='additive')
                 v.opacity = 1/len(np_array_list)
+                #v.opacity = 1
         else:
             for nch in range(self.Nch):
-                volume_list[nch].set_data(np_array_list[nch])
+                one_ch_volume = np_array_list[nch].copy(); one_ch_volume[0]*=z_coef
+                volume_list[nch].set_data(one_ch_volume)
             
         return volume_list            
     
@@ -581,7 +589,7 @@ class MyCanvas(SceneCanvas):
             #app.quit() #this closes napari
             #sys.exit('canvas was closed')
 
-def main2(path_img_in, path_img_in_tiff, max_memory_in, cmin, cmax, cmap_label_list, method_vis):
+def main2(path_img_in, path_img_in_tiff, max_memory_in, cmin, cmax, cmap_label_list, method_vis, zpyr):
     #path_img_in, path_img_in_tiff, max_memory_in, z_pyr_in, cmin, cmax, cmap_label, method_tiff
 
     
@@ -592,7 +600,7 @@ def main2(path_img_in, path_img_in_tiff, max_memory_in, cmin, cmax, cmap_label_l
     #global view, cam, canvas, render_method_list, volume, dask_data
     canvas_title = get_canvas_name(path_img_in, path_img_in_tiff)
     c_lim = [cmin, cmax]
-    dask_data, cmap_label_list_final, Nch = OpenImageZarr(path_img_in, path_img_in_tiff, cmap_label_list)
+    dask_data, cmap_label_list_final, Nch = OpenImageZarr(path_img_in, path_img_in_tiff, cmap_label_list, z_pyr = zpyr)
     my_canvas = MyCanvas(canvas_title, c_lim, cmap_label_list_final, max_memory_in, dask_data, method_vis, Nch)
     view = my_canvas.view; cam = view.camera
     #print('mycanva_run: ' + str(my_canvas.run_program))
