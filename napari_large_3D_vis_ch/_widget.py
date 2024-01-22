@@ -1,4 +1,11 @@
+"""
+This module is an example of a barebones QWidget plugin for napari
 
+It implements the Widget specification.
+see: https://napari.org/stable/plugins/guides.html?#widgets
+
+Replace code below according to your needs.
+"""
 import os
 from typing import TYPE_CHECKING
 
@@ -52,10 +59,10 @@ class NL3DvisWidget(QWidget):
         self.layout().addWidget(self.z_pyr.native)
         
         #plane_thickness
-        self.plane_thickness_label = Label(value='z plane thickness')
-        self.layout().addWidget(self.plane_thickness_label.native)
-        self.plane_thickness = Slider(value=1, min=0, max=1000)
-        self.layout().addWidget(self.plane_thickness.native)
+        self.opacity_label = Label(value='opacity %')
+        self.layout().addWidget(self.opacity_label.native)
+        self.opacity = Slider(value=50, min=1, max=100)
+        self.layout().addWidget(self.opacity.native)
         
         
         #colormap for 4 channels
@@ -120,4 +127,4 @@ class NL3DvisWidget(QWidget):
         #timer_check()
         #vis3D()
         cmap_list = [self.cmap1.value, self.cmap2.value, self.cmap3.value, self.cmap4.value]
-        vis3D(self.target_file.value, self.target_file_tiff.value, self.max_ram.value, self.min_int.value, self.max_int.value, cmap_list, self.method_vis.value, self.z_pyr.value, self.inv_cmap.value, self.plane_thickness.value)
+        vis3D(self.target_file.value, self.target_file_tiff.value, self.max_ram.value, self.min_int.value, self.max_int.value, cmap_list, self.method_vis.value, self.z_pyr.value, self.inv_cmap.value, self.opacity.value)
