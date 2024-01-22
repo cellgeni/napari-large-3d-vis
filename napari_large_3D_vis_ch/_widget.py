@@ -1,11 +1,4 @@
-"""
-This module is an example of a barebones QWidget plugin for napari
 
-It implements the Widget specification.
-see: https://napari.org/stable/plugins/guides.html?#widgets
-
-Replace code below according to your needs.
-"""
 import os
 from typing import TYPE_CHECKING
 
@@ -47,8 +40,10 @@ class NL3DvisWidget(QWidget):
         self.layout().addWidget(self.max_ram_label.native)
         self.max_ram = SpinBox(value=5, min = 1, max = 30)
         self.layout().addWidget(self.max_ram.native)
+       
         #z-pyramids
-        self.z_pyr = CheckBox(text='z pyramids')
+        #self.z_pyr = CheckBox(text='z pyramids')
+        
         #checkbox
         self.layout().addWidget(self.z_pyr.native)
         
@@ -109,7 +104,7 @@ class NL3DvisWidget(QWidget):
     def load_file(self):
         #viewer = Viewer()
         #qt_viewer = QtViewer(viewer)
-        
+        self.zpyr=True
         z_pyr = False; 
         #timer_check()
         #vis3D()
