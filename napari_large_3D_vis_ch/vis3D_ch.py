@@ -4,6 +4,7 @@ from vispy.visuals.filters.clipping_planes import PlanesClipper
 from ome_zarr.io import parse_url, ZarrLocation
 from ome_zarr.reader import Reader
 import fire
+import yaml
 import path
 from dask import delayed
 from dask.dataframe import from_dask_array
@@ -31,8 +32,12 @@ from itertools import repeat
 
 
         
-                               
-        
+def GetNch(cmap_label_list):
+    try:
+        Nch = cmap_label_list.index('None')
+    except:
+        Nch = 4
+    return Nch
     
 def check_all_elements_equal(lst):
     repeated = list(repeat(lst[0], len(lst)))
@@ -40,6 +45,9 @@ def check_all_elements_equal(lst):
         
 def OpenImageZarr(filepath_zarr, filepath_tiff, cmap_label_list, max_NCh = 4, z_pyr=False):
     
+    
+    N_ch = GetNch(cmap_label_list)
+    print('N_ch is: '+ str(N_ch))
     if len(str(filepath_zarr))>3:
         #at the moment I didnt change anything for ZARR regarding channels
         print('ZARRR')
@@ -56,7 +64,7 @@ def OpenImageZarr(filepath_zarr, filepath_tiff, cmap_label_list, max_NCh = 4, z_
         dask_data = []; cmap_list_updated = []
         #check if zarr file has already pyramids
         if len(dask_data_5c)>1:
-            N_ch = dask_data_5c[0].shape[ax_ch];
+            
             #if zarr already have pyramids
             for nch in range(N_ch):
                 single_channel_data = []
@@ -71,7 +79,7 @@ def OpenImageZarr(filepath_zarr, filepath_tiff, cmap_label_list, max_NCh = 4, z_
                 dask_data.append(single_channel_data)
                 cmap_list_updated.append(cmap_label_list[nch])
         else:
-            N_ch = dask_data_5c.shape[ax_ch];
+            
             #if there are no pyramids yet
             for nch in range(N_ch):
                 single_channel_data = []
@@ -104,8 +112,7 @@ def OpenImageZarr(filepath_zarr, filepath_tiff, cmap_label_list, max_NCh = 4, z_
             with tifffile.TiffFile(filepath_tiff) as tif:
                 axes = tif.series[0].axes
                 ax_ch = axes.find('C')
-                N_ch = tif.series[0].shape[ax_ch]
-                if N_ch > max_NCh: N_ch = max_NCh
+                
             
             lazy_imread = delayed(imread)
             reader = lazy_imread(filepath_tiff)
@@ -138,7 +145,7 @@ def OpenImageZarr(filepath_zarr, filepath_tiff, cmap_label_list, max_NCh = 4, z_
                     N_ch = 1
     if dask_data == []:
         print('Please choose colormaps for each channel!', file=sys.stderr)
-            
+    print('N_ch is: '+ str(N_ch))
     return dask_data, cmap_list_updated, N_ch
 
 ## here is a bunch of functions
@@ -169,8 +176,8 @@ def determine_pyr_level(distance, NPyr, n_cur, shape_pyr_level_in):
     print('Relative distance is ' + str(relative_distance))
     new_pyr_level = int((relative_distance-1)*NPyr)-1
     print('new pyr level is ' + str(new_pyr_level))
-    if new_pyr_level<1:
-        new_pyr_level=1
+    if new_pyr_level<0:
+        new_pyr_level=0
     if new_pyr_level>=NPyr:
         new_pyr_level = NPyr-1
     return new_pyr_level
@@ -235,7 +242,6 @@ def CheckIfInside(x,y,z, vol_shape):
 def extract_subset(dask_data, x, y, z, vol_shape, volume_center, boxsize):
     #print(vol_shape)
     #we consider only the lowest level of pyramid - higher resolution
-    dask_array = dask_data[0]
     # if we are inside the volume - crop only part of it
     x0 = int(x - boxsize/2); x1 = int(x + boxsize/2)
     y0 = int(y - boxsize/2); y1 = int(y + boxsize/2)
@@ -244,20 +250,27 @@ def extract_subset(dask_data, x, y, z, vol_shape, volume_center, boxsize):
     if x0<0: 
         x0=0; x1 = boxsize
     if x1>vol_shape[2]: 
-        x1=vol_shape[2]; x0 = x1-boxsize
+        x1=vol_shape[2]; #x0 = x1-boxsize
     if y0<0: 
         y0=0; y1 = boxsize
     if y1>vol_shape[1]: 
-        y1=vol_shape[1]; y0 = y1-boxsize
+        y1=vol_shape[1]; #y0 = y1-boxsize
     if z0<0: 
         z0=0; z1 = boxsize
     if z1>vol_shape[0]: 
-        z1=vol_shape[0]; z0 = z1-boxsize
+        z1=vol_shape[0]; #z0 = z1-boxsize
     np_list_of_chunks = []
-    for nch in range(len(dask_array)):
-        chunk = dask_array[nch][z0:z1, y0:y1, x0:x1]
+    print('chunk computed x0,x1,y0,y1,z0,z1')
+    print(str(x0)+'_'+str(x1))
+    print(str(y0)+'_'+str(y1))
+    print(str(z0)+'_'+str(z1))
+    for nch in range(len(dask_data)):
+        chunk = dask_data[nch][0][z0:z1, y0:y1, x0:x1]
+        
+        print(chunk.shape)
         np_chunk = chunk.compute()
         np_list_of_chunks.append(np_chunk)
+        print('channel ' + str(nch) + ' - chunk size saved is: ' + str(np_chunk.shape))
         del np_chunk
     return np_list_of_chunks
 
@@ -313,7 +326,7 @@ def get_canvas_name(path_img_in, path_img_in_tiff):
 
         
 class MyCanvas(SceneCanvas):
-    def __init__(self, canvas_title, clim, cmap_label, max_mem, dask_data, method_vis, Nch):
+    def __init__(self, canvas_title, clim, cmap_label, max_mem, dask_data, method_vis, Nch, zpyr, color_inverse, plane_thickness):
         SceneCanvas.__init__(self, keys='interactive', size=(800, 600), title = canvas_title, show = True)
         #self.canvas = SceneCanvas(keys='interactive', size=(800, 600), title = canvas_title, show = True)
         self.measure_fps()
@@ -328,13 +341,15 @@ class MyCanvas(SceneCanvas):
         #self.app = app.application.Application()
         self.pyr_level = len(dask_data[0])-1; self.vol_shape = dask_data[0][-1].shape
         self.method_vis = method_vis; self.fps_prev = self.fps
+        self.color_inverse = color_inverse
+        self.zpyr = zpyr
+        self.plane_thick = plane_thickness
         self._initialize_volume()
         self.timer = app.Timer(0.5, connect=self.on_time, start=True)
         self.timer_close = app.Timer(15, connect=self.check_canvas_closed, start=True)
         if method_vis[:5] == 'Auto ':
             self.timer_slow = app.Timer(5, connect=self.update_whole_scene, start=True)
-        
-        
+  
         self.run_program = True
     
     def _initialize_volume(self):
@@ -346,7 +361,7 @@ class MyCanvas(SceneCanvas):
         print('np_chunk0 shape is: ' + str(vol_init_np[0].shape))
         #print('full volume shape is: ' + str(self.dask_data[0].shape))
         
-        self.volume_list = self.update_volume_multichannel(vol_init_np, [])
+        self.volume_list = self.update_volume_multichannel(np_array_list = vol_init_np, volume_list = [])
         self.cur_ch = 0
         self.NCh = len(vol_init_np)
         
@@ -386,7 +401,9 @@ class MyCanvas(SceneCanvas):
         volume_center = (np.array(self.vol_shape)/ 2)[::-1]
         x,y,z,x_inv,y_inv, z_inv = find_xyz_pos(self.view.camera._actual_distance, self.view.camera.elevation, self.view.camera.azimuth, volume_center)
         coef = 2**(self.pyr_level); 
-        x*=coef;y*=coef;z*=coef;x_inv*=coef;y_inv*=coef; z_inv*=coef
+        x*=coef;y*=coef;x_inv*=coef;y_inv*=coef;
+        if self.zpyr:
+            z*=coef; z_inv*=coef
         if self.text_xyz == None:
             self.text_xyz = print_xyz_text(self, int(x), int(y), int(z), rcenter, rsize)
         else:
@@ -415,10 +432,12 @@ class MyCanvas(SceneCanvas):
                     self.x_list = []; self.y_list = []; self.z_list = []
                 
                 
-    def update_volume_multichannel(self, np_array_list, volume_list, z_coef = 5, color_inverse = False):
+    def update_volume_multichannel(self, np_array_list, volume_list, z_coef = 1):
     
         parent_scene = self.view.scene
         cmap_label_list = self.cmap_label_list; clim = self.clim
+        print('updated scene volume shape is :' + str(np_array_list[0].shape))
+        print('total number of channels is: ' + str(self.Nch))
         if volume_list == []:
             
             for nch in range(self.Nch):
@@ -430,37 +449,52 @@ class MyCanvas(SceneCanvas):
                 if cmap_label_list[nch][0] == 'C': colors_cmap = np.array([[0,0,0],[0,1,1]])
                 if cmap_label_list[nch][0] == 'M': colors_cmap = np.array([[0,0,0],[1,0,1]])
                 if cmap_label_list[nch][0] == 'W': colors_cmap = np.array([[0,0,0],[1,1,1]])
-                if color_inverse: colors_cmap[[0, 1]] = colors_cmap[[1, 0]]
-                one_ch_volume = np_array_list[nch].copy(); one_ch_volume[0]*=z_coef
+                if self.color_inverse: colors_cmap[[0, 1]] = colors_cmap[[1, 0]]
+                one_ch_volume = np_array_list[nch].copy(); #one_ch_volume[0]*=z_coef
+                print('channel ' + str(nch) + ' - one_ch_volume saved is: ' + str(one_ch_volume.shape))
                 custom_cmap = color.colormap.Colormap(colors = colors_cmap)
-                v = scene.visuals.Volume(one_ch_volume, cmap=custom_cmap, method='mip', raycasting_mode='volume', gamma="1.0", interpolation='linear', parent=parent_scene, clim = clim)
-                volume_list.append(v)
+                v = scene.visuals.Volume(one_ch_volume, cmap=custom_cmap, method='mip', raycasting_mode='volume', gamma="1.0", interpolation='linear', parent=parent_scene, clim = clim, relative_step_size = 0.1, plane_thickness = self.plane_thick)
                 v.set_gl_state(preset='additive')
                 v.opacity = 1/len(np_array_list)
+                volume_list.append(v)
+                
                 #v.opacity = 1
         else:
             for nch in range(self.Nch):
-                one_ch_volume = np_array_list[nch].copy(); one_ch_volume[0]*=z_coef
+                
+                one_ch_volume = np_array_list[nch].copy(); #one_ch_volume[0]*=z_coef
+                #print('Max value of channel' + str(nch) + ' is ' + str(np.max(one_ch_volume)))
+                print('channel ' + str(nch) + ' - one_ch_volume saved is: ' + str(one_ch_volume.shape))
+                volume_list[nch].plane_thickness = self.plane_thick
                 volume_list[nch].set_data(one_ch_volume)
-            
         return volume_list            
     
     def update_actual_scene_inside(self, np_list_of_chunks, n_pyr_cur, volume_center, boxsize, x, y, z):
-        #print('xyz-inside')
-        #print(x)
-        #print(y)
-        #print(z)
+        print('xyz-inside')
+        print(x)
+        print(y)
+        print(z)
         self.volume_list = self.update_volume_multichannel(np_list_of_chunks, self.volume_list) 
         distance = volume_center - np.array([x,y,z])
-        chunk_center = np.array([boxsize/2, boxsize/2, boxsize/2])
+        chunk_center = np.array(np_list_of_chunks[0].shape)/2; chunk_center = chunk_center[::-1]
         print('cam center before update: ' + str(self.view.camera.center))
+        print('chunk center is: '+ str(chunk_center))
         print('distance vector is : ' + str(distance))
         print('volume_center is : ' + str(volume_center))
         self.view.camera.center = (chunk_center + distance)#[::-1]
+        print('cam center after update1: ' + str(self.view.camera.center))
         #cam.scale_factor *= 2**(n_pyr_cur-new_pyr_level)
-        self.view.camera._actual_distance *= 2**(n_pyr_cur-self.pyr_level)
+        factor = 2**(n_pyr_cur-self.pyr_level)
+        if factor != 1:
+            if self.zpyr:
+                self.view.camera._actual_distance *= factor
+            else:
+                theta = self.view.camera.elevation; theta = theta/360*np.pi
+                theta_upd = np.arctan(np.tan(theta)/factor)
+                self.view.camera.elevation = theta_upd*360/np.pi
+                self.view.camera._actual_distance *= np.sin(theta)/np.sin(theta_upd)
+                
         self.view.camera.distance = self.view.camera._actual_distance
-        print('cam center after update: ' + str(self.view.camera.center))
         gc.collect()
         
     def update_actual_scene_outside(self, old_pyr_level):
@@ -475,7 +509,16 @@ class MyCanvas(SceneCanvas):
         print('Volume center is: ' + str(volume_center))
         self.view.camera.center = volume_center
         #cam.scale_factor *= 2**(n_pyr_cur-new_pyr_level)
-        self.view.camera._actual_distance *= 2**(old_pyr_level-self.pyr_level)
+        factor = 2**(old_pyr_level-self.pyr_level)
+        
+        if factor != 1:
+            if self.zpyr:
+                self.view.camera._actual_distance *= factor
+            else:
+                theta = self.view.camera.elevation; theta = theta/360*np.pi
+                theta_upd = np.arctan(np.tan(theta)/factor)
+                #self.view.camera.elevation = theta_upd*360/np.pi
+                self.view.camera._actual_distance *= np.sin(theta)/np.sin(theta_upd)
         self.view.camera.distance = self.view.camera._actual_distance
         gc.collect()
     
@@ -509,7 +552,9 @@ class MyCanvas(SceneCanvas):
             print('Updated new pyr level ' + str(new_pyr_level))
             if new_pyr_level != n_pyr_cur:
                 coef = 2**(n_pyr_cur-new_pyr_level)
-                x*=coef;y*=coef;z*=coef;x_inv*=coef;y_inv*=coef; z_inv*=coef      
+                x*=coef;y*=coef;x_inv*=coef;y_inv*=coef;   
+                if self.zpyr:
+                    z*=coef; z_inv*=coef
                 self.pyr_level = new_pyr_level
                 self.vol_shape = np.array(self.dask_data[0][new_pyr_level].shape)
                 print('volume shape is: ' + str(self.vol_shape))
@@ -518,12 +563,15 @@ class MyCanvas(SceneCanvas):
         if inside:
             new_pyr_level = 0
             boxsize = DetBoxSizeMem(self.dask_data[0][new_pyr_level], self.max_memory/2)
-            boxsize /= len(self.dask_data)**(1/3)
+            boxsize /= (len(self.dask_data)**(1/3)); boxsize = int(boxsize)
+            
             print('Computed box size: ' + str(boxsize))
             #boxsize = 500
             if new_pyr_level != n_pyr_cur:
                 coef = 2**(n_pyr_cur-new_pyr_level)
-                x*=coef;y*=coef;z*=coef; x_inv*=coef; y_inv*=coef; z_inv*=coef       
+                x*=coef;y*=coef; x_inv*=coef; y_inv*=coef; 
+                if self.zpyr:
+                    z*=coef; z_inv*=coef
                 self.pyr_level = new_pyr_level
                 self.vol_shape = np.array(self.dask_data[0][new_pyr_level].shape)
                 volume_center = (np.array(self.vol_shape)/ 2)[::-1]
@@ -533,6 +581,8 @@ class MyCanvas(SceneCanvas):
                     CS.vol_shape[0] /= 2**new_pyr_level
                 '''
                 #print('Boxsize is ' + str(boxsize))
+            print('self.dask_data len is : ' + str(len(self.dask_data)))
+            print('self.dask_data[0] len is : ' + str(len(self.dask_data[0])))
             np_list_of_chunks = extract_subset(self.dask_data, x, y_inv, z, self.vol_shape, volume_center, boxsize)   
             self.update_actual_scene_inside(np_list_of_chunks, n_pyr_cur, volume_center, boxsize, x, y_inv, z)
             
@@ -588,7 +638,7 @@ class MyCanvas(SceneCanvas):
             #app.quit() #this closes napari
             #sys.exit('canvas was closed')
 
-def main2(path_img_in, path_img_in_tiff, max_memory_in, cmin, cmax, cmap_label_list, method_vis, zpyr):
+def main2(path_img_in, path_img_in_tiff, max_memory_in, cmin, cmax, cmap_label_list, method_vis, zpyr, color_inverse, plane_thickness):
     #path_img_in, path_img_in_tiff, max_memory_in, z_pyr_in, cmin, cmax, cmap_label, method_tiff
 
     
@@ -600,7 +650,9 @@ def main2(path_img_in, path_img_in_tiff, max_memory_in, cmin, cmax, cmap_label_l
     canvas_title = get_canvas_name(path_img_in, path_img_in_tiff)
     c_lim = [cmin, cmax]
     dask_data, cmap_label_list_final, Nch = OpenImageZarr(path_img_in, path_img_in_tiff, cmap_label_list, z_pyr = zpyr)
-    my_canvas = MyCanvas(canvas_title, c_lim, cmap_label_list_final, max_memory_in, dask_data, method_vis, Nch)
+    print(len(dask_data))
+    print(len(dask_data[0]))
+    my_canvas = MyCanvas(canvas_title, c_lim, cmap_label_list_final, max_memory_in, dask_data, method_vis, Nch, zpyr, color_inverse, plane_thickness)
     view = my_canvas.view; cam = view.camera
     #print('mycanva_run: ' + str(my_canvas.run_program))
     #while my_canvas.run_program == True:
