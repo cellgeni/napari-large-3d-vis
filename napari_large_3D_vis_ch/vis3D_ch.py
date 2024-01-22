@@ -326,7 +326,7 @@ def get_canvas_name(path_img_in, path_img_in_tiff):
 
         
 class MyCanvas(SceneCanvas):
-    def __init__(self, canvas_title, clim, cmap_label, max_mem, dask_data, method_vis, Nch, zpyr, color_inverse, plane_thickness):
+    def __init__(self, canvas_title, clim, cmap_label, max_mem, dask_data, method_vis, Nch, zpyr, color_inverse, opasity):
         SceneCanvas.__init__(self, keys='interactive', size=(800, 600), title = canvas_title, show = True)
         #self.canvas = SceneCanvas(keys='interactive', size=(800, 600), title = canvas_title, show = True)
         self.measure_fps()
@@ -343,7 +343,8 @@ class MyCanvas(SceneCanvas):
         self.method_vis = method_vis; self.fps_prev = self.fps
         self.color_inverse = color_inverse
         self.zpyr = zpyr
-        self.plane_thick = plane_thickness
+        #self.plane_thick = plane_thickness;
+        self.opacity = opasity
         self._initialize_volume()
         self.timer = app.Timer(0.5, connect=self.on_time, start=True)
         self.timer_close = app.Timer(15, connect=self.check_canvas_closed, start=True)
@@ -453,9 +454,10 @@ class MyCanvas(SceneCanvas):
                 one_ch_volume = np_array_list[nch].copy(); #one_ch_volume[0]*=z_coef
                 print('channel ' + str(nch) + ' - one_ch_volume saved is: ' + str(one_ch_volume.shape))
                 custom_cmap = color.colormap.Colormap(colors = colors_cmap)
-                v = scene.visuals.Volume(one_ch_volume, cmap=custom_cmap, method='mip', raycasting_mode='volume', gamma="1.0", interpolation='linear', parent=parent_scene, clim = clim, relative_step_size = 0.1, plane_thickness = self.plane_thick)
+                v = scene.visuals.Volume(one_ch_volume, cmap=custom_cmap, method='mip', raycasting_mode='volume', gamma="1.0", interpolation='linear', parent=parent_scene, clim = clim, relative_step_size = 0.1)
                 v.set_gl_state(preset='additive')
-                v.opacity = 1/len(np_array_list)
+                #v.opacity = 1/len(np_array_list)
+                v.opacity = self.opacity/100
                 volume_list.append(v)
                 
                 #v.opacity = 1
@@ -465,7 +467,7 @@ class MyCanvas(SceneCanvas):
                 one_ch_volume = np_array_list[nch].copy(); #one_ch_volume[0]*=z_coef
                 #print('Max value of channel' + str(nch) + ' is ' + str(np.max(one_ch_volume)))
                 print('channel ' + str(nch) + ' - one_ch_volume saved is: ' + str(one_ch_volume.shape))
-                volume_list[nch].plane_thickness = self.plane_thick
+                #volume_list[nch].plane_thickness = self.plane_thick
                 volume_list[nch].set_data(one_ch_volume)
         return volume_list            
     
@@ -638,7 +640,7 @@ class MyCanvas(SceneCanvas):
             #app.quit() #this closes napari
             #sys.exit('canvas was closed')
 
-def main2(path_img_in, path_img_in_tiff, max_memory_in, cmin, cmax, cmap_label_list, method_vis, zpyr, color_inverse, plane_thickness):
+def main2(path_img_in, path_img_in_tiff, max_memory_in, cmin, cmax, cmap_label_list, method_vis, zpyr, color_inverse, opacity):
     #path_img_in, path_img_in_tiff, max_memory_in, z_pyr_in, cmin, cmax, cmap_label, method_tiff
 
     
@@ -652,7 +654,7 @@ def main2(path_img_in, path_img_in_tiff, max_memory_in, cmin, cmax, cmap_label_l
     dask_data, cmap_label_list_final, Nch = OpenImageZarr(path_img_in, path_img_in_tiff, cmap_label_list, z_pyr = zpyr)
     print(len(dask_data))
     print(len(dask_data[0]))
-    my_canvas = MyCanvas(canvas_title, c_lim, cmap_label_list_final, max_memory_in, dask_data, method_vis, Nch, zpyr, color_inverse, plane_thickness)
+    my_canvas = MyCanvas(canvas_title, c_lim, cmap_label_list_final, max_memory_in, dask_data, method_vis, Nch, zpyr, color_inverse, opacity)
     view = my_canvas.view; cam = view.camera
     #print('mycanva_run: ' + str(my_canvas.run_program))
     #while my_canvas.run_program == True:
